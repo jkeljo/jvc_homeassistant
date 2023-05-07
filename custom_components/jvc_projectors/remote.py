@@ -160,12 +160,14 @@ class JVCRemote(RemoteEntity):
 
         self.jvc_client.power_on()
         self._state = True
+        self.async_write_ha_state()
 
     def turn_off(self, **kwargs):
         """Send the power off command."""
 
         self.jvc_client.power_off()
         self._state = False
+        self.async_write_ha_state()
 
     def update(self):
         """Retrieve latest state."""
