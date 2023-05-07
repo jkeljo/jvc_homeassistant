@@ -1,5 +1,6 @@
 """Implement JVC component."""
 from collections.abc import Iterable
+import asyncio
 import logging
 import time
 from jvc_projector.jvc_projector import JVCProjector
@@ -20,6 +21,8 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 _LOGGER = logging.getLogger(__name__)
 
+CONF_BOOT_TIME = "projector_boot_time"
+
 # Validation of the user's configuration
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -28,6 +31,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_PASSWORD): cv.string,
         vol.Required(CONF_SCAN_INTERVAL): cv.time_period,
         vol.Optional(CONF_TIMEOUT): cv.positive_int,
+        vol.Optional(CONF_BOOT_TIME): cv.time_period,
     }
 )
 
@@ -48,11 +52,12 @@ def setup_platform(
         logger=_LOGGER,
         connect_timeout=int(config.get(CONF_TIMEOUT, 3)),
     )
+    boot_time=int(config.get(CONF_BOOT_TIME, 60))
     # create a long lived connection
     jvc_client.open_connection()
     add_entities(
         [
-            JVCRemote(name, host, jvc_client),
+            JVCRemote(name, host, boot_time, jvc_client),
         ]
     )
 
@@ -64,12 +69,14 @@ class JVCRemote(RemoteEntity):
         self,
         name: str,
         host: str,
+        boot_time: int,
         jvc_client: JVCProjector = None,
     ) -> None:
         """JVC Init."""
         self._name = name
         self._host = host
 
+        self._boot_time = boot_time
         # used when its ready to accept commands
         self._is_updating = False
         self._command_running = False
@@ -155,12 +162,14 @@ class JVCRemote(RemoteEntity):
 
         return self._state
 
-    def turn_on(self, **kwargs):
+    async def async_turn_on(self, **kwargs):
         """Send the power on command."""
 
         self.jvc_client.power_on()
         self._state = True
         self.async_write_ha_state()
+
+        await asyncio.sleep(self._boot_time)
 
     def turn_off(self, **kwargs):
         """Send the power off command."""
